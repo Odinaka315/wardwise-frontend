@@ -1,0 +1,191 @@
+FEDERAL NEURO-PSYCHIATRIC HOSPITAL, YABA, 2026 INTERNS
+CAPSTONE PROJECT
+Programme: Data, decision and optimisation internship
+Dataset: fnph_yaba_dataset.xlsx, fnph_yaba_dataset.sql, fnph_yaba_dataset_csv.zip
+Duration: six weeks, part time, in teams of three or four
+Final output: a deployed web application, one technical report, one board presentation of fifteen minutes built around a live demonstration, one two-page decision memorandum
+The situation
+Four of you have been employed as Programme Analyst, Systems Analyst, Computer Engineer and Data Processing Officer at the Information Management Unit (IMU/ICT) of the Federal Neuro-Psychiatric Hospital, Yaba. The hospital runs 362 inpatient beds across nine wards, about 128 short of about 490 beds, a day hospital of thirty places, a busy outpatient department, a crisis and triage unit, and four community teams that cover twenty-two catchment areas across Lagos and beyond.
+The management board has a problem it cannot describe in the language of a general hospital. Patients do not simply arrive, get treated and leave. They move between the acute ward, the rehabilitation ward, the day hospital and community follow-up, and they keep moving until something ends the process. A patient recovers and is discharged from the service. A patient is transferred elsewhere. A patient dies. Or, most often of all, a patient stops coming and is lost to follow-up, which the wards call the silent discharge.
+Medical Directors, beginning from Dr Idowu Malomo, Dr HTO Ladapo, Dr RA Lawal, Dr R Adebayo, Dr OC Ogun and currently, Dr OA Owoeye, have all put this exact question this way:
+“Every month we admit, treat and discharge, and every month the same faces return. Given the beds, staff and money we already have, what is the best course of action?”
+Your set (four of you) must answer with evidence. What the board is looking for is a dashoard with actionable insight and a decision, and it wants to know what the decision assumes.
+The absorbing view of the service
+Everything in this project is built on one structure. The care pathway has five transient states and five absorbing states.
+Transient states
+Acute inpatient
+Rehabilitation inpatient
+Day hospital
+Outpatient follow-up
+Community relapse
+Absorbing states
+Recovered and discharged from the service
+Lost to follow-up
+Transferred to another facility
+Long stay institutional care
+Deceased
+The fourth of those needs saying plainly. The long term care ward holds people who entered years or decades ago and now live in the hospital under a federal continuing care grant. In service-planning terms that state is absorbing. Once a patient enters it, the bed is committed and the realistic exits are death or, occasionally, a family member deciding to take the person home. Death is by far the more common of the two.
+Treat it as absorbing in the main chain, because that is what it means for capacity. Then model the exit separately from long_stay_residents, which carries sixty-two residents with year of entry, guardianship status, next-of-kin contact, nursing hours and the exits observed over the three years. A survival model on that register gives you the exit hazard, and the exit hazard is what tells the board when a long term bed will next become available. Answer that question explicitly, because it is the only bed-release forecast the ward has ever been asked for.
+The table care_pathway_transitions holds monthly moves for 3,200 patients over three years. From that table you must build the transition matrix, split it into the transient block Q and the absorption block R, and compute the fundamental matrix N = (I − Q)⁻¹. Three quantities follow, and each one answers a management question.
+The row sums of N give the expected number of months a patient spends in the system before absorption, starting from each state. This is the true length of care, not the length of stay.
+The entries of N give the expected number of months spent in each state before absorption. This is what a ward actually costs the service over a patient's career.
+The matrix B = NR gives the probability of ending in each absorbing state. Compare recovery against loss to follow-up, and compare both against long stay institutional care, then explain what those comparisons mean for a service that measures itself by discharges.
+Do this before you build anything else. Every later model in the project takes its parameters, its states or its objective from this structure.
+What the board question contains
+The single question hides six, and each maps to a discipline in your training. Answer them in order, because each answer feeds the next.
+1. What has happened?
+Profile demand, occupancy, stay, cost, attendance, safety incidents and community workload across the three years. Quantify the seasonal shape, and explain the July 2024 dip and the December pattern. Use descriptive statistics, confidence intervals, hypothesis tests, correlation and index numbers. The psychotropic price series needs Laspeyres, Paasche and Fisher indices, because the naira did not sit still.
+Look hard at occupancy by unit. Two wards run above capacity for most of the period, two sit largely idle, and one is full on every single day of the three years without ever turning over. Distinguish nominal capacity from effective capacity, because fifty beds are permanently spoken for and no admission policy can touch them. None of this is announced anywhere in the data.
+2. What will happen?
+Forecast daily admissions, hourly crisis unit arrivals and monthly demand for the ten highest-value pharmacy lines. Compare at least four approaches drawn from ARIMA, exponential smoothing, XGBoost and LSTM. Report MAE, RMSE, MAPE and adjusted R-squared, and name the model you would put into production.
+3. Who is at risk, and who resembles whom?
+Build a classifier for ninety-day readmission and a second for clinic non-attendance. Report accuracy, precision, recall, F1, specificity, ROC-AUC, PR-AUC and log loss. Then segment the patient population without any label, and defend your choice of cluster count using the silhouette score, the Davies-Bouldin index and the Calinski-Harabasz index. Only after that may you touch the hidden label, and only to compute the adjusted Rand index and normalised mutual information.
+Add a third and a fourth target that matter more than either. Predict which patients will be absorbed into loss to follow-up. Build it from v_absorption_summary joined to patient circumstances, and treat family support, distance and travel fare as first-class features rather than controls. Then predict which rehabilitation ward patients are on a trajectory towards long stay institutional care, using time in state, symptom trajectory, guardianship and family contact. That prediction is the only one the hospital could act on early enough to change the outcome.
+4. What pattern does the flow follow under uncertainty?
+Estimate the absorbing chain above. Test whether a first-order Markov assumption holds, or whether sojourn time in a state changes the transition probabilities, which would push you towards a semi-Markov treatment. Fit an arrival process to the crisis unit and test the Poisson assumption honestly.
+5. What happens if we change something?
+Build a discrete-event simulation of the journey from crisis presentation through ward and day hospital into community follow-up, with relapse feeding back to the front door. Validate it against observed census, waiting times and absorption proportions before you trust it, then run the scenarios below.
+6. How should our decisions learn as conditions change?
+Derive a placement policy from placement_decision_log, compare it against the threshold rule the hospital uses now, and state the conditions under which your policy would fail.
+The thesis model chain
+This capstone follows the an architecture, and the point of the exercise is that you learn to build the systems design way. The rule is simple.
+One named core model carries the decision. Every other technique is an input generator for it, not a rival to it.
+Statistics, forecasting, classification, clustering and simulation do not sit beside the core model as equal deliverables. They produce its parameters: the transition matrix, the demand distributions, the risk scores, the cost coefficients, the service rates. The core model then produces the recommendation, and the recommendation is what the board sees.
+Each team takes one core model, drawn from the three architectures in my thesis. The full specification and notation for each will be issued separately with the thesis extract, so use the names as given.
+Team
+Core model
+Decision it carries
+Inputs it consumes
+Both teams
+Model 1 (give it a name of your choice)
+Placement and discharge policy over the transient states, including when to step a patient down and when to escalate community support
+Transition matrix, sojourn distributions, relapse risk scores, cost per state
+Both teams
+Model 2 (give it a name of your choice)
+Bed and placement configuration across the eight wards and the day hospital, including the reallocation the occupancy figures will suggest
+Forecast demand by unit, expected months per state from the fundamental matrix, staffing constraints, tariffs
+Both teams
+Model 3 (give it a name of your choice)
+Allocation of community teams, outpatient capacity and outreach spend across the twenty-two zones
+Zone demand, loss-to-follow-up risk by zone, travel matrices, contact yield rates, budget ceilings
+Every team must produce a model chain diagram on one page, showing each input generator, the parameter it produces, and where that parameter enters the core model. If a technique you ran does not appear on that diagram, it did not belong in the project.
+Evaluation of the core model
+Classical hypothesis testing belongs to the descriptive stage in question one, and it stays there. The core model is not judged by a p-value but on three criteria, and your report must address each explicitly.
+Data quality. State what each parameter rests on, how many observations support it, and how much it would move under the missingness and outliers you found. Parameters estimated from thin cells must be flagged as thin.
+Model chain consistency. Show that the units, time bases and state definitions match at every junction of the chain. A monthly transition matrix feeding a daily simulation is an error, not a detail. Show that a change in an upstream input propagates sensibly to the recommendation.
+Usefulness of the decision support output. Show that the output answers a question the hospital actually asks, in a form a clinician or an administrator can act on. A policy table that no ward manager can read has failed this criterion however elegant its derivation.
+The system you must build
+The final deliverable should be a working web application that anyone on the board can open in a browser and use without your help. 
+The five layers
+Data layer. Oracle, Microsoft SQL Server, PostgreSQL or any R-DBMS of your choice, loaded from fnph_yaba_dataset.sql. The database is the single source of truth, and the teaching views in the dump are there to be used. No CSV files in the running system.
+Prediction service. Trained models saved as artefacts and loaded at start-up. Nothing is trained inside a web request. Retraining is a scheduled or manually triggered job, and every artefact records the data window and the seed it came from.
+Optimisation service. The core model, solved as a background job through a queue rather than in the request thread. A solve that takes four minutes must not hold a browser connection open. The user submits, the job runs, the screen polls and then shows the result.
+Application programming interface. A documented HTTP interface between the back end and the front end. Publish an OpenAPI or equivalent specification. Every number the interface shows must come from an endpoint, not from a value typed into the front end.
+Front end. A browser interface with the screens listed below, charts that updates when filters change, and honest loading and error states. It must be usable on a laptop in a meeting room and readable on a phone.
+Stack
+Use your preferred framework, your preferred R-DBMS, PostgreSQL, a job queue such as Celery with Redis, and a JavaScript front end such as React, Vue, Svelte. Solve with PuLP, Pyomo or OR-Tools against CBC or HiGHS. 
+Screens the application must have
+Screen
+What it shows
+Baseline
+Occupancy by ward over time, nominal against effective capacity, stay, cost, attendance and safety indicators, filterable by ward, diagnosis group and period.
+Pathway explorer
+The estimated transition matrix, the fundamental matrix, expected months to absorption and absorption probabilities, recomputed on the fly when the user filters by segment, family support, zone or diagnosis.
+Forecast
+Admissions, crisis arrivals and drug demand, with prediction intervals shown rather than hidden, and the model in use named on the screen.
+Risk worklist
+A ranked list of patients at risk of loss to follow-up and of a trajectory into long term care, with the drivers of each score shown beside it. A ward manager should be able to act on this list on a Monday morning.
+Long term ward
+The resident register, the fitted exit hazard and the bed-release forecast with intervals.
+Decision
+The core model output, being a policy, a roster or an allocation, with the controls a user needs to change assumptions, a resolve button, job status, and a plain reading of what changed and why.
+Scenarios
+The six board scenarios side by side on the measures that matter, with the recommendation stated.
+Non-negotiables
+The application must run from a clean checkout with one command, using containers and a seeded database. If the marker cannot start it, it does not exist.
+It must be reachable at a public address for the demonstration week. A free hosting tier is acceptable, and a laptop under the desk is not. You can use the free version of Microsoft Azure to host it.
+No model training, and no solve, inside a request handler. Long work goes to the queue.
+Every figure on every screen must be traceable to an endpoint and from there to a query or a model artefact. If you cannot trace it, remove it.
+The board presentation is a live demonstration of the running application, not a set of screenshots. Prepare for the network to fail and have a recorded fallback.
+Build it thin first. In week two you should already have a running application with one real screen and one real endpoint, even if everything behind it is provisional. Teams that leave the application to the last fortnight do not finish.
+Supporting optimisation, compulsory for all teams
+Whichever core model you carry, you also deliver these three.
+Bed reallocation across the nine inpatient and day units, as a linear programme and then as a mixed-integer programme, with a stated objective, a full constraint set and sensitivity analysis. Which constraint binds, and what does moving one bed between two named wards actually buy?
+A 28-day nurse and doctor roster from shift_requirements and staff_availability, respecting locked-ward competency, night limits and leave requests. Solve it as an integer programme, then again with preferences as goals, and compare.
+A goal programming model for the 2026 budget, using the board priority weights in budget_lines. If possible, for 2027, 208 and 2029 budgets.
+Scenarios the board will ask about
+Run each through your simulation and your core model, and report the effect on occupancy, waiting time, absorption probabilities, relapse and cost.
+Demand grows by twelve per cent over the next year with the seasonal shape unchanged.
+Funds are released for exactly one of the following: twelve extra rehabilitation beds, a fifth community team, or doubling the day hospital. Recommend one, with a number attached. Hedging is not an answer.
+Non-attendance is cut by a third through reminders and transport support. What does that do to the probability of loss to follow-up, and what does it cost per patient retained?
+A two-week industrial action repeats at the scale of July 2024.
+Diesel and drug prices rise by another forty per cent.
+A resettlement programme moves eight long term residents into supported community housing. Model the released beds, the community cost that replaces the grant, and the effect on the absorption probabilities.
+For scenario three, note the mechanism you are claiming. If your model says retention improves, it must say through which transition.
+Deliverables
+1. Technical report, twenty-five to thirty-five pages. Introduction, data and methods, model chain, results, discussion, recommendations, limitations, references. Every model gets its full formulation, with decision variables, objective function, constraints and parameter sources. Cite in APA 7th edition style, restricted to sources published from 2021 onward.
+2. Deployed web application and repository. The running system described above, reachable at a public address, plus the source with a README, a container definition, a fixed seed, database migrations and a seeding script. One command from a clean checkout must give a working system.
+3. Board presentation, fifteen minutes. Five slides at most, then a live demonstration of the application answering the board question in front of the panel. Lead with the recommendation, then the evidence, then the risk. No model names on the first slide. Your audience is clinical, financial and impatient.
+4. Decision memorandum, two pages, for the chief medical director. Plain language, one recommendation, three supporting numbers, one honest statement of what could go wrong.
+Milestones
+Week
+Milestone
+Checkpoint
+1
+Data audit, cleaning log, descriptive baseline, database loaded, project skeleton running
+Cleaning decisions defended, application skeleton opened in a browser
+1
+Absorbing chain estimated, pathway explorer screen live on real data
+Chain arithmetic checked line by line
+1
+Forecasting, classification and segmentation complete, forecast and risk screens live
+Model comparison and metric choice challenged
+2
+Core model formulated, solved as a background job, decision screen live
+Formulation and chain consistency reviewed
+2
+Simulation validated, scenarios run, scenario screen live, application deployed publicly
+Marker starts the system from a clean checkout
+2
+Policy comparison, report, live demonstration
+Full submission and defence
+Rules of the game
+The data carries deliberate faults. Missing values sit in three columns of admissions, and twenty length-of-stay values are inflated. Find them, decide, and record the decision. Silent deletion costs marks.
+Two columns are answer keys. patients.segment_label may be used only after clustering is complete, to compute ARI and NMI. unit_quarterly_panel.true_efficiency_hidden may be used only to check your efficiency analysis at the end. Neither may enter any model as a feature.
+Every number about the hospital must trace to a table, a query or a model output. If you cannot show where it came from, remove it.
+Assumptions are expected. Undocumented assumptions are not.
+This is synthetic data about a real category of patient. Write about people with respect, use clinical terms correctly, and avoid language that reduces a patient to a bed-day or a defaulter. The phrase you will need often is loss to follow-up, and it describes a failure of the service, not of the patient. The long term residents are people with names, histories and, in many cases, nobody left who visits. Write about them as residents of the hospital, never as blocked beds, whatever the optimisation model calls them.
+Assessment
+Component
+Weight
+What earns the marks
+Data handling and statistical rigour
+15
+Correct cleaning, sound inference, honest uncertainty
+Stochastic modelling of the pathway
+20
+Correct absorbing chain, all five absorbing states handled, defensible state definitions, sensible interpretation
+Core model formulation and solution
+25
+Correct mathematics, feasible solutions, sensitivity analysis, clean model chain
+Predictive modelling as input generation
+15
+Valid validation, correct metrics, no leakage, parameters fit for the core model
+Simulation and scenario analysis
+10
+Validated model, full scenario coverage, mechanisms stated
+Communication and reproducibility
+15
+Report quality, running code, board presentation
+A team that builds a technically flawless model and cannot explain it to a ward manager has failed the brief. So has a team with a beautiful application that no model stands behind, and so has a team with excellent models that nobody can open in a browser.
+Stretch work
+Extend the core model into a two-stage stochastic programme, using your forecast distribution to build the scenario tree.
+Fit a survival model to the long term care exit hazard, compare parametric and Cox specifications, and produce a bed-release forecast with intervals.
+Fit a semi-Markov version of the pathway and compare expected time to absorption against the Markov estimate.
+Run data envelopment analysis on the quarterly unit panel and compare the ranking against a stochastic frontier estimate.
+Train a one-dimensional convolutional network on the weekly symptom sequences and compare it against an LSTM.
+Add a duty officer mode to the application, so that whoever is on call can enter the current state and receive a placement recommendation in one screen.
+Add role-based access, so that a ward manager, an analyst and a board member each see a different view of the same system.
+Instrument the application, so that you can report which screens were used and how long solves actually took.
+A closing note
+The hospital in this dataset is synthetic. However, the pattern is not. Across Nigerian mental health services, a large share of patients leave the system without ever being discharged from it, and the service usually finds out months later, when they return in crisis. Your job over six weeks is to show that this pattern can be measured, modelled and acted on, and that a better course of action can be defended with numbers.
