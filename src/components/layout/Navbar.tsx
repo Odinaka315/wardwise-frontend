@@ -1,6 +1,7 @@
-import { Activity, Building2, RefreshCw, Menu, X } from 'lucide-react'
+import { Activity, RefreshCw, Menu, X } from 'lucide-react'
 import { API_BASE_URL } from '../../services/api'
 import { useBackendHealthQuery } from '../../hooks/useWardWiseQueries'
+import fnphyLogo from '../../assets/FNPHY logo 2.png'
 
 interface NavbarProps {
   mobileMenuOpen?: boolean
@@ -25,9 +26,11 @@ export const Navbar = ({ mobileMenuOpen = false, onToggleMobileMenu }: NavbarPro
             {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5" />}
           </button>
         )}
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
-          <Building2 className="w-4 h-4 text-white" />
-        </div>
+        <img
+          src={fnphyLogo}
+          alt="FNPH Yaba Logo"
+          className="w-8 h-8 rounded-full object-contain shrink-0 shadow-md shadow-emerald-500/10 bg-white/5 p-0.5"
+        />
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold tracking-tight text-white">WardWise</span>

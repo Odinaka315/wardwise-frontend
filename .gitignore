@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 
 .env
+CUSTOM_SCENARIO_FRONTEND_SPEC.md

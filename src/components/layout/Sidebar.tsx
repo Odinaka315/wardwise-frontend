@@ -9,9 +9,10 @@ import {
   LayoutDashboard,
   TrendingUp,
   BedDouble,
-  Building2,
   X,
+  FlaskConical,
 } from 'lucide-react'
+import fnphyLogo from '../../assets/FNPHY logo 2.png'
 
 interface NavItem {
   to: string
@@ -27,6 +28,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
     items: [
       { to: '/decisions', label: 'Decision Suite', icon: SlidersHorizontal, badge: 'Core', badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
       { to: '/scenarios', label: 'Scenarios', icon: GitCompare, badge: 'Board', badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
+      { to: '/scenarios/custom', label: 'Custom Scenario', icon: FlaskConical, badge: 'Custom', badgeColor: 'bg-violet-500/15 text-violet-400 border-violet-500/20' },
     ],
   },
   {
@@ -75,9 +77,11 @@ export const Sidebar = ({ isOpen = false, onClose }: SidebarProps) => {
         {/* Mobile Header with Brand & Close Button */}
         <div className="flex md:hidden items-center justify-between p-4 border-b border-white/5 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-              <Building2 className="w-3.5 h-3.5 text-white" />
-            </div>
+            <img
+              src={fnphyLogo}
+              alt="FNPH Yaba Logo"
+              className="w-7 h-7 rounded-full object-contain bg-white/5 p-0.5"
+            />
             <span className="font-bold text-sm text-white">WardWise</span>
           </div>
           <button

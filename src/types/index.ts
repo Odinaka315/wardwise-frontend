@@ -190,3 +190,85 @@ export interface StrikeTrajectoryPoint {
   strikePeriodOccupancy: number
   rehabGap: number
 }
+
+// Custom Scenario Types
+
+export type BedGroup = 'ACUTE' | 'REHAB' | 'DAY'
+
+export type DisruptionEventType = 'none' | 'strike' | 'surge' | 'freeze'
+
+export interface CustomScenarioBaselineDefaults {
+  capacity: Record<BedGroup, number>
+  phi: Record<BedGroup, number>
+  bed_cost_per_day_ngn: Record<BedGroup, number>
+  community_cost_per_month_ngn: { outpatient_follow_up: number; community_relapse: number }
+  demand_multiplier: number
+  overcrowd_dropout: number
+  horizon_months: number
+  warmup_months: number
+  entry_window_months: number
+  default_replications: number
+  event_types: {
+    none: null
+    strike: { arrival_factor: number; discharge_factor: number }
+    surge: { arrival_factor: number; discharge_factor: number }
+    freeze: { arrival_factor: number; discharge_factor: number }
+  }
+  note: string
+}
+
+export interface CustomScenarioSubmission {
+  label: string
+  capacity_overrides?: Partial<Record<BedGroup, number>>
+  demand_multiplier?: number
+  overcrowd_dropout?: number
+  event?: {
+    type: DisruptionEventType
+    start_month?: number
+    duration_months?: number
+    arrival_factor?: number | null
+    discharge_factor?: number | null
+  }
+  horizon_months?: number
+  replications?: number
+}
+
+export interface CustomScenarioTrajectoryGroup {
+  baseline_occupancy: number[]
+  scenario_occupancy: number[]
+  gap: number[]
+  deepest_dip_month_offset: number
+  deepest_dip_gap: number
+}
+
+export interface CustomScenarioTrajectory {
+  months_relative_to_event: number[]
+  acute: CustomScenarioTrajectoryGroup
+  rehab: CustomScenarioTrajectoryGroup
+  day: CustomScenarioTrajectoryGroup
+}
+
+export interface CustomScenarioResult {
+  occupancy_rate_0: number // Acute
+  occupancy_rate_1: number // Rehab
+  occupancy_rate_2: number // Day
+  overflow_beds_1: number
+  wait_days_1: number
+  'abs_Lost to follow-up': number
+  'abs_Recovered and discharged from service': number
+  monthly_relapse_events: number
+  monthly_cost_ngn: number
+  months_in_system: number
+  label: string
+  warnings: string[]
+  trajectory: CustomScenarioTrajectory | null
+  [key: string]: unknown // remaining summarise() keys
+}
+
+export interface SavedCustomScenario {
+  id: string
+  name: string
+  savedAt: string // ISO timestamp
+  params: CustomScenarioSubmission
+  result?: CustomScenarioResult | null
+}

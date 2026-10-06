@@ -14,6 +14,9 @@ import type {
   ScenarioSimulationResult,
   StrikeTrajectoryPoint,
   Model2UnitPlan,
+  CustomScenarioBaselineDefaults,
+  CustomScenarioSubmission,
+  CustomScenarioResult,
 } from '../types'
 import {
   hospitalUnitsBaseline,
@@ -560,4 +563,39 @@ export const fetchStrikeTrajectory = async (): Promise<{ data: StrikeTrajectoryP
     return strikeTrajectoryData
   }, strikeTrajectoryData)
 }
+
+// Custom Scenario API functions
+
+export const fetchCustomScenarioBaselineDefaults = async (): Promise<CustomScenarioBaselineDefaults> => {
+  const res = await apiClient.get<CustomScenarioBaselineDefaults>('/api/v1/simulation/baseline-defaults')
+  return res.data
+}
+
+export const submitCustomScenario = async (
+  payload: CustomScenarioSubmission
+): Promise<{ task_id: string; status: string }> => {
+  const res = await apiClient.post<{ task_id: string; status: string }>('/api/v1/simulation/custom', payload)
+  return res.data
+}
+
+export const pollCustomScenarioResult = async (
+  taskId: string,
+  maxAttempts = 60,
+  intervalMs = 1500
+): Promise<CustomScenarioResult> => {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    const pollRes = await apiClient.get<{ status: string; result?: CustomScenarioResult; error?: string }>(
+      `/api/v1/simulation/result/${taskId}`
+    )
+    if (pollRes.data?.status === 'SUCCESS' && pollRes.data?.result !== undefined) {
+      return pollRes.data.result
+    }
+    if (pollRes.data?.status === 'FAILURE') {
+      throw new Error(pollRes.data?.error || `Custom scenario task ${taskId} failed`)
+    }
+  }
+  throw new Error(`Custom scenario task ${taskId} timed out`)
+}
+
 

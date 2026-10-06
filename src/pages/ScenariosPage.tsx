@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { CheckCircle2, Info, RefreshCw } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { CheckCircle2, Info, RefreshCw, FlaskConical, ExternalLink } from 'lucide-react'
 import {
   useScenarioSimulationQuery,
   useStrikeTrajectoryQuery,
@@ -9,9 +10,11 @@ import {
   strikeTrajectoryData as fallbackStrike,
 } from '../data/mockData'
 import { PageSkeleton } from '../components/ui/Skeleton'
+import type { SavedCustomScenario, ScenarioSimulationResult } from '../types'
 
 export const ScenariosPage = () => {
   const [selectedScenarioId, setSelectedScenarioId] = useState<number>(2)
+  const [selectedCustomId, setSelectedCustomId] = useState<string | null>(null)
   const [showStrikeDeepDive, setShowStrikeDeepDive] = useState<boolean>(true)
 
   const { data: simData, isFetching: isSimFetching, refetch: refetchSim } = useScenarioSimulationQuery()
@@ -22,7 +25,45 @@ export const ScenariosPage = () => {
   const isFetching = isSimFetching || isStrikeFetching
   const isLoading = !simData && isSimFetching
 
-  const selectedScenario = scenarios.find((s) => s.scenarioId === selectedScenarioId) || scenarios[1]
+  // Read saved custom scenarios from localStorage
+  const savedCustomScenarios = useMemo<SavedCustomScenario[]>(() => {
+    try {
+      const raw = localStorage.getItem('wardwise_custom_scenarios')
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  }, [])
+
+  // Adapt selected custom scenario to ScenarioSimulationResult format if selected
+  const activeCustomScenario = useMemo<ScenarioSimulationResult | null>(() => {
+    if (!selectedCustomId) return null
+    const s = savedCustomScenarios.find((item) => item.id === selectedCustomId)
+    if (!s || !s.result) return null
+    const r = s.result
+    const stable = Math.round((r['abs_Recovered and discharged from service'] ?? 0) * 100)
+    const ltfu = Math.round((r['abs_Lost to follow-up'] ?? 0) * 100)
+    const longStay = Math.max(0, 100 - stable - ltfu)
+    return {
+      scenarioId: 9999,
+      code: 'CUSTOM',
+      name: s.name,
+      description: `User-defined custom simulation (${(s.params.demand_multiplier ?? 1).toFixed(2)}× demand, disruption: ${s.params.event ? s.params.event.type : 'none'}).`,
+      costMonthlyDeltaNgn: 0,
+      monthlyCostMlnNgn: Math.round(r.monthly_cost_ngn / 1_000_000),
+      occupancyRatePct: Math.round((Number(r.occupancy_rate_1 ?? 0)) * 100),
+      avgWaitDays: Number(r.wait_days_1.toFixed(1)),
+      overflowEventsPerQuarter: Math.round(r.overflow_beds_1 * 3),
+      absorptionMix: {
+        dischargedStablePct: stable,
+        lostToFollowUpPct: ltfu,
+        longStayTransferPct: longStay,
+      },
+      recommendationNote: `Custom parameters simulated on ${new Date(s.savedAt).toLocaleDateString()}. Acute occ: ${(Number(r.occupancy_rate_0 ?? 0) * 100).toFixed(1)}%, Rehab occ: ${(Number(r.occupancy_rate_1 ?? 0) * 100).toFixed(1)}%, Day occ: ${(Number(r.occupancy_rate_2 ?? 0) * 100).toFixed(1)}%.`,
+    }
+  }, [selectedCustomId, savedCustomScenarios])
+
+  const selectedScenario = activeCustomScenario ?? (scenarios.find((s) => s.scenarioId === selectedScenarioId) || scenarios[1])
 
   if (isLoading) return <PageSkeleton />
 
@@ -42,6 +83,13 @@ export const ScenariosPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            to="/scenarios/custom"
+            className="px-3.5 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-violet-900/20 transition-all cursor-pointer"
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            Run Custom Scenario
+          </Link>
           <button
             onClick={() => { refetchSim(); refetchStrike() }}
             disabled={isFetching}
@@ -97,14 +145,17 @@ export const ScenariosPage = () => {
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Select Scenario</span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
           {scenarios.map((s) => {
-            const isSelected = selectedScenarioId === s.scenarioId
+            const isSelected = !selectedCustomId && selectedScenarioId === s.scenarioId
             const isRec = s.isRecommendedOption
             return (
               <button
                 key={s.scenarioId}
-                onClick={() => setSelectedScenarioId(s.scenarioId)}
+                onClick={() => {
+                  setSelectedCustomId(null)
+                  setSelectedScenarioId(s.scenarioId)
+                }}
                 className={`p-3 rounded-xl border text-left transition-all ${
                   isSelected
                     ? 'bg-white/8 border-emerald-500/30 ring-1 ring-emerald-500/20'
@@ -137,6 +188,62 @@ export const ScenariosPage = () => {
               </button>
             )
           })}
+
+          {/* Saved Custom Scenarios with Results */}
+          {savedCustomScenarios.filter((s) => !!s.result).map((cs) => {
+            const isSelected = selectedCustomId === cs.id
+            const occ = Math.round(Number(cs.result!.occupancy_rate_1 ?? 0) * 100)
+            const wait = Number(cs.result!.wait_days_1.toFixed(1))
+
+            return (
+              <button
+                key={cs.id}
+                onClick={() => setSelectedCustomId(cs.id)}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  isSelected
+                    ? 'bg-white/8 border-violet-500/40 ring-1 ring-violet-500/20'
+                    : 'glass-card border-violet-500/20 hover:bg-violet-500/5'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-mono font-bold text-violet-400">Custom</span>
+                  <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-300 uppercase">
+                    Saved
+                  </span>
+                </div>
+                <h4 className="text-[11px] font-semibold text-slate-300 leading-tight line-clamp-2 mb-2">
+                  {cs.name}
+                </h4>
+                <div className="space-y-0.5 text-[10px] font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Occ</span>
+                    <span className="text-slate-400">{occ}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Wait</span>
+                    <span className="text-slate-400">{wait}d</span>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+
+          {/* New Custom Scenario shortcut card */}
+          <Link
+            to="/scenarios/custom"
+            className="p-3 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10 text-left transition-all flex flex-col justify-between group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono font-bold text-violet-400">Builder</span>
+              <FlaskConical className="w-3.5 h-3.5 text-violet-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <h4 className="text-[11px] font-semibold text-white leading-tight mb-2">
+              + Custom
+            </h4>
+            <div className="space-y-0.5 text-[10px] font-mono">
+              <span className="text-violet-300/80 group-hover:text-violet-200">Configure &rarr;</span>
+            </div>
+          </Link>
         </div>
       </div>
 
@@ -145,7 +252,9 @@ export const ScenariosPage = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-3 border-b border-white/5">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold text-slate-500 bg-white/5 px-2 py-0.5 rounded-full">
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                selectedCustomId ? 'bg-violet-500/15 text-violet-300 border border-violet-500/25' : 'bg-white/5 text-slate-500'
+              }`}>
                 {selectedScenario.code}
               </span>
               <h3 className="text-base font-bold text-white">{selectedScenario.name}</h3>
@@ -153,6 +262,15 @@ export const ScenariosPage = () => {
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   Preferred
                 </span>
+              )}
+              {selectedCustomId && (
+                <Link
+                  to="/scenarios/custom"
+                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/30 hover:bg-violet-500/25 flex items-center gap-1 transition-colors"
+                >
+                  <ExternalLink className="w-2.5 h-2.5" />
+                  Edit in Builder
+                </Link>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1">{selectedScenario.description}</p>

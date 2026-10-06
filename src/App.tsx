@@ -11,6 +11,7 @@ import { OverviewPage } from './pages/OverviewPage'
 import { ForecastPage } from './pages/ForecastPage'
 import { LongStayPage } from './pages/LongStayPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { CustomScenarioPage } from './pages/CustomScenarioPage'
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
           <Route index element={<Navigate to="/decisions" replace />} />
           <Route path="decisions" element={<DecisionsPage />} />
           <Route path="scenarios" element={<ScenariosPage />} />
+          <Route path="scenarios/custom" element={<CustomScenarioPage />} />
           <Route path="pathway" element={<PathwayPage />} />
           <Route path="risk-worklist" element={<RiskWorklistPage />} />
           <Route path="segments" element={<SegmentsPage />} />
