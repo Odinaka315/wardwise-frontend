@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { fetchBaselineSummary, type BaselineFilters } from '../services/api';
 import {
   checkBackendHealth,
   fetchOverviewBaseline,
@@ -133,3 +134,13 @@ export const useStrikeTrajectoryQuery = () => {
     staleTime: 1000 * 60 * 15,
   })
 }
+
+// useWardWiseQueries.ts additions
+
+
+export const useBaselineSummaryQuery = (filters: BaselineFilters = {}) => {
+  return useQuery({
+    queryKey: ['baseline-summary', filters],
+    queryFn: () => fetchBaselineSummary(filters),
+  });
+};

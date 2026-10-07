@@ -11,6 +11,7 @@ import {
   BedDouble,
   X,
   FlaskConical,
+  Activity
 } from 'lucide-react'
 import fnphyLogo from '../../assets/FNPHY logo 2.png'
 
@@ -29,6 +30,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
       { to: '/decisions', label: 'Decision Suite', icon: SlidersHorizontal, badge: 'Core', badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
       { to: '/scenarios', label: 'Scenarios', icon: GitCompare, badge: 'Board', badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
       { to: '/scenarios/custom', label: 'Custom Scenario', icon: FlaskConical, badge: 'Custom', badgeColor: 'bg-violet-500/15 text-violet-400 border-violet-500/20' },
+      { to: '/baseline', label: 'Baseline', icon: Activity },
     ],
   },
   {

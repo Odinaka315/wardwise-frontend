@@ -144,10 +144,12 @@ export const fetchPathwaySummary = async (
       } as PathwaySummary & Partial<PathwayFilterMeta> // <-- Added type assertion
     }
 
-    if (!raw || !raw.states) {
-      return pathwaySummaryData as PathwaySummary & Partial<PathwayFilterMeta> // <-- Added type assertion
+    // FIXED: The backend does not send 'states', so we check for transition_matrix instead
+    if (!raw || (!raw.states && !raw.transition_matrix)) {
+      return pathwaySummaryData as PathwaySummary & Partial<PathwayFilterMeta>
     }
 
+    // Fall back to the baseline states list if the backend omits it
     const states: string[] = raw.states || pathwaySummaryData.states
     let matrix: number[][]
 
@@ -674,4 +676,42 @@ export const pollCustomScenarioResult = async (
   throw new Error(`Custom scenario task ${taskId} timed out`)
 }
 
+// api.ts additions
+export interface BaselineFilters {
+  unitId?: string;
+  diagnosisGroup?: string;
+  startDate?: string;
+  endDate?: string;
+}
 
+export interface BaselineSummaryResult {
+  occupancySeries: Array<{
+    census_date: string;
+    nominal_capacity: number;
+    occupied_beds: number;
+    occupancy_rate: number;
+  }>;
+  avgLengthOfStay: number;
+  avgCostNgn: number;
+  attendanceRate: number;
+  safetyIncidents: number;
+}
+
+export const fetchBaselineSummary = async (filters: BaselineFilters = {}): Promise<BaselineSummaryResult> => {
+  const params: Record<string, string> = {};
+  if (filters.unitId) params.unit_id = filters.unitId;
+  if (filters.diagnosisGroup) params.diagnosis_group = filters.diagnosisGroup;
+  if (filters.startDate) params.start_date = filters.startDate;
+  if (filters.endDate) params.end_date = filters.endDate;
+
+  const res = await apiClient.get('/api/v1/baseline/summary', { params });
+  const raw = res.data;
+  
+  return {
+    occupancySeries: raw.occupancy_series || [],
+    avgLengthOfStay: raw.avg_length_of_stay || 0,
+    avgCostNgn: raw.avg_cost_ngn || 0,
+    attendanceRate: raw.attendance_rate || 0,
+    safetyIncidents: raw.safety_incidents || 0,
+  };
+};

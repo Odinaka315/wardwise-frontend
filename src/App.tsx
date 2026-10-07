@@ -12,7 +12,7 @@ import { ForecastPage } from './pages/ForecastPage'
 import { LongStayPage } from './pages/LongStayPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { CustomScenarioPage } from './pages/CustomScenarioPage'
-
+import { BaselinePage } from './pages/BaselinePage'
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -30,6 +30,7 @@ export function App() {
           <Route path="overview" element={<OverviewPage />} />
           <Route path="forecast" element={<ForecastPage />} />
           <Route path="long-stay" element={<LongStayPage />} />
+          <Route path="baseline" element={<BaselinePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

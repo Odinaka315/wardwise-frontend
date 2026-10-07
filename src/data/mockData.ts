@@ -357,8 +357,9 @@ export const pathwaySummaryData: PathwaySummary = {
   minReliableTransitions: 150,
   statesWithNoData: [],
   filtersApplied: {},
-  keyFindingNote:
-    'Across all cohorts, 35% to 43% (overall mean 39.4%) of patients exit the formal treatment cascade via Lost-to-Follow-up rather than planned clinical discharge. Filtering by patient segment, zone, family support tier, or diagnosis exposes significant subgroup variance.',
+  keyFindingNote: 'Across all cohorts, 35% to 43% (overall mean 39.4%) of patients exit the formal treatment cascade via Lost-to-Follow-up rather than planned clinical discharge. Filtering by patient segment, zone, family support tier, or diagnosis exposes significant subgroup variance.',
+  noData: false,
+  noDataMessage: ''
 }
 
 // 3. Admission Forecasts
