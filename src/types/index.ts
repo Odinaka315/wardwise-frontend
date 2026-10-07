@@ -30,19 +30,98 @@ export interface TransitionCell {
   probability: number
 }
 
+export interface PathwaySegmentOption {
+  code: number
+  label: string
+}
+
+export interface PathwayFamilySupportOption {
+  value: 'low' | 'medium' | 'high'
+  label: string
+}
+
+export interface PathwayZoneOption {
+  id: string
+  name: string
+}
+
+export interface PathwayDiagnosisOption {
+  id: string
+  name: string
+  group: string
+}
+
+export interface PathwayFilterOptions {
+  segments: PathwaySegmentOption[]
+  family_support_tiers: PathwayFamilySupportOption[]
+  zones: PathwayZoneOption[]
+  diagnosis_groups: string[]
+  diagnoses: PathwayDiagnosisOption[]
+}
+
+export interface PathwayFilterParams {
+  segment_code?: number
+  family_support_tier?: 'low' | 'medium' | 'high'
+  family_support_min?: number
+  family_support_max?: number
+  zone_id?: string
+  diagnosis_group?: string
+  diagnosis_id?: string
+}
+
+export interface PathwaySummaryFiltersApplied {
+  segment_code?: number | null
+  family_support_tier?: string | null
+  family_support_min?: number | null
+  family_support_max?: number | null
+  zone_id?: string | null
+  diagnosis_group?: string | null
+  diagnosis_id?: string | null
+}
+
+export interface PathwayAbsorptionRow {
+  state: string
+  dischargedStable: number
+  lostToFollowUp: number
+  transferredLongTerm: number
+  transferredFacility?: number
+  deceased?: number
+  rawMap?: Record<string, number>
+}
+
 export interface PathwaySummary {
   states: string[]
+  transientStates: string[]
+  absorbingStates: string[]
   transitionMatrix: number[][]
-  lostToFollowUpRate: number // 35-43% headline finding
+  fundamentalMatrix?: Record<string, Record<string, number>>
   expectedMonthsToAbsorption: { [state: string]: number }
-  absorptionProbabilities: {
-    state: string
-    dischargedStable: number
-    lostToFollowUp: number
-    transferredLongTerm: number
-  }[]
-  keyFindingNote: string
+  absorptionProbabilities: PathwayAbsorptionRow[]
+  rawAbsorptionMap?: Record<string, Record<string, number>>
+  lostToFollowUpRate: number // Recomputed mean LTFU % across transient states
+  minLostToFollowUpRate?: number
+  maxLostToFollowUpRate?: number
+  censoredPatientFraction?: number
+  sampleSize: number
+  patientCount: number
+  reliable: boolean
+  minReliableTransitions: number
+  statesWithNoData: string[]
+  filtersApplied: PathwaySummaryFiltersApplied
+  keyFindingNote?: string
+  noData:boolean
+  noDataMessage:string
 }
+
+export interface PathwaySummaryFetchResult {
+  isNoData?: boolean
+  error?: string
+  message?: string
+  data?: PathwaySummary
+  sampleSize?: number
+  filtersApplied?: PathwaySummaryFiltersApplied
+}
+
 
 export interface ForecastItem {
   unitCode: UnitCode

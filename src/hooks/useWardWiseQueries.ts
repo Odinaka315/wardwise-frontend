@@ -13,6 +13,8 @@ import {
   fetchBudgetSolve,
   fetchScenarioSimulation,
   fetchStrikeTrajectory,
+  fetchPathwayFilterOptions,
+  type PathwayFilters,
 } from '../services/api'
 
 // Backend connectivity and database health hook
@@ -34,13 +36,23 @@ export const useOverviewBaselineQuery = () => {
 }
 
 // 2. Patient Pathway Explorer (Markov Chain Summary)
-export const usePathwaySummaryQuery = () => {
+export const usePathwaySummaryQuery = (filters: PathwayFilters = {}) => {
   return useQuery({
-    queryKey: ['pathway-summary'],
-    queryFn: fetchPathwaySummary,
+    // Including `filters` in the query key is what makes "recompute on the
+    // fly when filtered" actually happen: React Query treats a different
+    // filters object as a different query and refetches automatically.
+    queryKey: ['pathway-summary', filters],
+    queryFn: () => fetchPathwaySummary(filters),
   })
 }
 
+export const usePathwayFilterOptionsQuery = () => {
+  return useQuery({
+    queryKey: ['pathway-filter-options'],
+    queryFn: fetchPathwayFilterOptions,
+    staleTime: 1000 * 60 * 30, // these barely change -- segments/zones/diagnoses are near-static reference data
+  })
+}
 // 3. Admission Forecasts
 export const useForecastQuery = () => {
   return useQuery({

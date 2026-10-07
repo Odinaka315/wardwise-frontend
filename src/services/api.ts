@@ -33,6 +33,33 @@ import {
   strikeTrajectoryData,
 } from '../data/mockData'
 
+export interface PathwayFilters {
+  segmentCode?: number
+  familySupportTier?: 'low' | 'medium' | 'high'
+  zoneId?: string
+  diagnosisGroup?: string
+  diagnosisId?: string
+}
+ 
+export interface PathwayFilterOptions {
+  segments: { code: number; label: string }[]
+  familySupportTiers: { value: string; label: string }[]
+  zones: { id: string; name: string }[]
+  diagnosisGroups: string[]
+  diagnoses: { id: string; name: string; group: string }[]
+}
+ 
+export interface PathwayFilterMeta {
+  sampleSize: number
+  patientCount: number
+  reliable: boolean
+  minReliableTransitions: number
+  statesWithNoData: string[]
+  filtersApplied: Record<string, unknown>
+  noData: boolean
+  noDataMessage: string
+}
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://wardwise-api-4eqo.onrender.com'
 
 // Axios instance configured for WardWise API endpoints
@@ -81,22 +108,46 @@ export const fetchOverviewBaseline = async (): Promise<{ data: UnitBaseline[]; i
   }, hospitalUnitsBaseline)
 }
 
-// 2. Patient Pathway Explorer — Live Read Endpoint with Markov normalizer
-export const fetchPathwaySummary = async (): Promise<{ data: PathwaySummary; isLive: boolean }> => {
+export const fetchPathwaySummary = async (
+  filters: PathwayFilters = {}
+): Promise<{ data: PathwaySummary & Partial<PathwayFilterMeta>; isLive: boolean }> => {
   return withFallback(async () => {
+    const params: Record<string, string | number> = {}
+    if (filters.segmentCode !== undefined) params.segment_code = filters.segmentCode
+    if (filters.familySupportTier) params.family_support_tier = filters.familySupportTier
+    if (filters.zoneId) params.zone_id = filters.zoneId
+    if (filters.diagnosisGroup) params.diagnosis_group = filters.diagnosisGroup
+    if (filters.diagnosisId) params.diagnosis_id = filters.diagnosisId
+
     const res = await apiClient.get<{
+      error?: string
+      message?: string
       states?: string[]
       transition_matrix?: Record<string, Record<string, number>> | number[][]
       expected_months_to_absorption?: Record<string, number>
       absorption_probabilities?: Record<string, Record<string, number>>
-    }>('/api/v1/pathway/summary')
+      sample_size?: number
+      patient_count?: number
+      reliable?: boolean
+      min_reliable_transitions?: number
+      states_with_no_data?: string[]
+      filters_applied?: Record<string, unknown>
+    }>('/api/v1/pathway/summary', { params })
     const raw = res.data
 
-    if (!raw || !raw.states) {
-      return pathwaySummaryData
+    if (raw?.error === 'no_data') {
+      return {
+        ...pathwaySummaryData,
+        noData: true,
+        noDataMessage: raw.message || 'No transitions match this filter combination.',
+        sampleSize: 0,
+      } as PathwaySummary & Partial<PathwayFilterMeta> // <-- Added type assertion
     }
 
-    // Normalize states and transition matrix if received as dict-of-dicts from FastAPI
+    if (!raw || !raw.states) {
+      return pathwaySummaryData as PathwaySummary & Partial<PathwayFilterMeta> // <-- Added type assertion
+    }
+
     const states: string[] = raw.states || pathwaySummaryData.states
     let matrix: number[][]
 
@@ -111,10 +162,8 @@ export const fetchPathwaySummary = async (): Promise<{ data: PathwaySummary; isL
       matrix = pathwaySummaryData.transitionMatrix
     }
 
-    // Expected months
     const expectedMonths = raw.expected_months_to_absorption || pathwaySummaryData.expectedMonthsToAbsorption
 
-    // Absorption probabilities normalization
     let absorptionList: PathwaySummary['absorptionProbabilities']
     if (raw.absorption_probabilities && typeof raw.absorption_probabilities === 'object') {
       const absMap = raw.absorption_probabilities
@@ -122,29 +171,56 @@ export const fetchPathwaySummary = async (): Promise<{ data: PathwaySummary; isL
         const recovered = Number(((targetProbs['Recovered and discharged from service'] || 0) * 100).toFixed(1))
         const ltfu = Number(((targetProbs['Lost to follow-up'] || 0) * 100).toFixed(1))
         const other = Number((Math.max(0, 100 - recovered - ltfu)).toFixed(1))
-
-        return {
-          state,
-          dischargedStable: recovered,
-          lostToFollowUp: ltfu,
-          transferredLongTerm: other,
-        }
+        return { state, dischargedStable: recovered, lostToFollowUp: ltfu, transferredLongTerm: other }
       })
     } else {
       absorptionList = pathwaySummaryData.absorptionProbabilities
     }
 
+    const ltfuValues = absorptionList.map((a) => a.lostToFollowUp)
+    const meanLtfu = ltfuValues.length > 0
+      ? Number((ltfuValues.reduce((a, b) => a + b, 0) / ltfuValues.length).toFixed(1))
+      : pathwaySummaryData.lostToFollowUpRate
+
     return {
       states,
       transitionMatrix: matrix,
-      lostToFollowUpRate: pathwaySummaryData.lostToFollowUpRate,
+      lostToFollowUpRate: meanLtfu,
       expectedMonthsToAbsorption: expectedMonths,
       absorptionProbabilities: absorptionList.length > 0 ? absorptionList : pathwaySummaryData.absorptionProbabilities,
       keyFindingNote: pathwaySummaryData.keyFindingNote,
-    }
-  }, pathwaySummaryData)
+      sampleSize: raw.sample_size,
+      patientCount: raw.patient_count,
+      reliable: raw.reliable,
+      minReliableTransitions: raw.min_reliable_transitions,
+      statesWithNoData: raw.states_with_no_data ?? [],
+      filtersApplied: raw.filters_applied ?? {},
+      noData: false,
+    } as PathwaySummary & Partial<PathwayFilterMeta> // <-- Added type assertion
+  }, pathwaySummaryData as PathwaySummary & Partial<PathwayFilterMeta>) // <-- Added type assertion to fallback
 }
 
+export const fetchPathwayFilterOptions = async (): Promise<PathwayFilterOptions> => {
+  try {
+    const res = await apiClient.get<{
+      segments: { code: number; label: string }[]
+      family_support_tiers: { value: string; label: string }[]
+      zones: { id: string; name: string }[]
+      diagnosis_groups: string[]
+      diagnoses: { id: string; name: string; group: string }[]
+    }>('/api/v1/pathway/filter-options')
+    const raw = res.data
+    return {
+      segments: raw.segments ?? [],
+      familySupportTiers: raw.family_support_tiers ?? [],
+      zones: raw.zones ?? [],
+      diagnosisGroups: raw.diagnosis_groups ?? [],
+      diagnoses: raw.diagnoses ?? [],
+    }
+  } catch {
+    return { segments: [], familySupportTiers: [], zones: [], diagnosisGroups: [], diagnoses: [] }
+  }
+}
 // 3. Admission Forecasts — Live Read Endpoint
 export const fetchForecast = async (): Promise<{ data: ForecastItem[]; isLive: boolean }> => {
   return withFallback(async () => {

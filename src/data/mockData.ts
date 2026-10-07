@@ -11,6 +11,7 @@ import type {
   BudgetTierResult,
   ScenarioSimulationResult,
   StrikeTrajectoryPoint,
+  PathwayFilterOptions
 } from '../types'
 
 // 1. Hospital Units Baseline Data (FNPH Yaba)
@@ -150,45 +151,214 @@ export const hospitalUnitsBaseline: UnitBaseline[] = [
 ]
 
 // 2. Patient Pathway Explorer Data (Absorbing Markov Chain & Transition Matrix)
-export const pathwaySummaryData: PathwaySummary = {
-  states: ['Acute Admission', 'Step-down Rehab', 'Community Maintenance', 'Discharged Stable', 'Lost to Follow-up', 'Transferred Long-Term'],
-  transitionMatrix: [
-    // [Acute, Rehab, Community, Discharged, Lost, LongTerm]
-    [0.18, 0.42, 0.12, 0.08, 0.16, 0.04], // From Acute Admission
-    [0.05, 0.22, 0.38, 0.14, 0.18, 0.03], // From Step-down Rehab
-    [0.09, 0.04, 0.31, 0.16, 0.38, 0.02], // From Community Maintenance
-    [0.00, 0.00, 0.00, 1.00, 0.00, 0.00], // Discharged Stable (Absorbing)
-    [0.00, 0.00, 0.00, 0.00, 1.00, 0.00], // Lost to Follow-up (Absorbing)
-    [0.00, 0.00, 0.00, 0.00, 0.00, 1.00], // Transferred Long-Term (Absorbing)
+export const pathwayFilterOptionsData: PathwayFilterOptions = {
+  segments: [
+    { code: 0, label: 'Single episode, good recovery' },
+    { code: 1, label: 'Stable maintenance attender' },
+    { code: 2, label: 'Substance-related recurrent' },
+    { code: 3, label: 'Revolving door, frequent relapse' },
+    { code: 4, label: 'Chronic long stay and rehabilitation' },
   ],
-  lostToFollowUpRate: 39.4, // Headline finding 35–43%
+  family_support_tiers: [
+    { value: 'low', label: 'Low (0-3)' },
+    { value: 'medium', label: 'Medium (4-7)' },
+    { value: 'high', label: 'High (8-10)' },
+  ],
+  zones: [
+    { id: 'Z10', name: 'Agege' },
+    { id: 'Z11', name: 'Ajah' },
+    { id: 'Z09', name: 'Alimosho' },
+    { id: 'Z16', name: 'Amuwo-Odofin' },
+    { id: 'Z15', name: 'Apapa' },
+    { id: 'Z08', name: 'Badagry' },
+    { id: 'Z07', name: 'Epe' },
+    { id: 'Z17', name: 'Festac' },
+    { id: 'Z01', name: 'Ikeja' },
+    { id: 'Z06', name: 'Ikorodu' },
+    { id: 'Z14', name: 'Ikoyi' },
+    { id: 'Z20', name: 'Kosofe' },
+    { id: 'Z12', name: 'Lekki' },
+    { id: 'Z04', name: 'Mushin' },
+    { id: 'Z21', name: 'Ogun border communities' },
+    { id: 'Z18', name: 'Ojo' },
+    { id: 'Z05', name: 'Oshodi-Isolo' },
+    { id: 'Z22', name: 'Other states' },
+    { id: 'Z19', name: 'Somolu' },
+    { id: 'Z03', name: 'Surulere' },
+    { id: 'Z13', name: 'Victoria Island' },
+    { id: 'Z02', name: 'Yaba' },
+  ],
+  diagnosis_groups: [
+    'Child and adolescent',
+    'Mood',
+    'Neurological',
+    'Neurotic',
+    'Organic',
+    'Personality',
+    'Psychotic',
+    'Substance',
+  ],
+  diagnoses: [
+    { id: 'F23', name: 'Acute and transient psychotic disorder', group: 'Psychotic' },
+    { id: 'F10', name: 'Alcohol use disorder', group: 'Substance' },
+    { id: 'F41', name: 'Anxiety disorder', group: 'Neurotic' },
+    { id: 'F84', name: 'Autism spectrum disorder', group: 'Child and adolescent' },
+    { id: 'F31', name: 'Bipolar affective disorder', group: 'Mood' },
+    { id: 'F12', name: 'Cannabis use disorder', group: 'Substance' },
+    { id: 'F00', name: 'Dementia', group: 'Organic' },
+    { id: 'F32', name: 'Depressive episode', group: 'Mood' },
+    { id: 'G40', name: 'Epilepsy with psychiatric features', group: 'Neurological' },
+    { id: 'F90', name: 'Hyperkinetic disorder', group: 'Child and adolescent' },
+    { id: 'F70', name: 'Intellectual disability', group: 'Child and adolescent' },
+    { id: 'F19', name: 'Multiple substance use', group: 'Substance' },
+    { id: 'F11', name: 'Opioid use disorder', group: 'Substance' },
+    { id: 'F06', name: 'Organic mental disorder', group: 'Organic' },
+    { id: 'F60', name: 'Personality disorder', group: 'Personality' },
+    { id: 'F43', name: 'Reaction to severe stress', group: 'Neurotic' },
+    { id: 'F33', name: 'Recurrent depressive disorder', group: 'Mood' },
+    { id: 'F25', name: 'Schizoaffective disorder', group: 'Psychotic' },
+    { id: 'F20', name: 'Schizophrenia', group: 'Psychotic' },
+    { id: 'F15', name: 'Stimulant use disorder', group: 'Substance' },
+  ],
+}
+
+export const pathwaySummaryData: PathwaySummary = {
+  states: [
+    'Acute inpatient',
+    'Rehabilitation inpatient',
+    'Day hospital',
+    'Outpatient follow-up',
+    'Community relapse',
+    'Deceased',
+    'Long stay institutional care',
+    'Lost to follow-up',
+    'Recovered and discharged from service',
+    'Transferred to another facility',
+  ],
+  transientStates: [
+    'Acute inpatient',
+    'Rehabilitation inpatient',
+    'Day hospital',
+    'Outpatient follow-up',
+    'Community relapse',
+  ],
+  absorbingStates: [
+    'Deceased',
+    'Long stay institutional care',
+    'Lost to follow-up',
+    'Recovered and discharged from service',
+    'Transferred to another facility',
+  ],
+  transitionMatrix: [
+    [0.4944, 0.1968, 0.0585, 0.1753, 0.0, 0.0053, 0.0068, 0.0268, 0.0144, 0.0217],
+    [0.0697, 0.5484, 0.1048, 0.1670, 0.0, 0.0063, 0.0341, 0.0232, 0.0361, 0.0104],
+    [0.0407, 0.0646, 0.4732, 0.2905, 0.0352, 0.0, 0.0, 0.0308, 0.0572, 0.0077],
+    [0.0288, 0.0220, 0.0472, 0.6148, 0.1304, 0.0010, 0.0, 0.0665, 0.0853, 0.0040],
+    [0.3163, 0.0484, 0.0530, 0.2952, 0.1993, 0.0, 0.0, 0.0651, 0.0166, 0.0061],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+  ],
+  fundamentalMatrix: {
+    'Acute inpatient': {
+      'Acute inpatient': 2.783,
+      'Rehabilitation inpatient': 1.556,
+      'Day hospital': 0.949,
+      'Outpatient follow-up': 3.071,
+      'Community relapse': 0.542,
+    },
+    'Rehabilitation inpatient': {
+      'Acute inpatient': 0.982,
+      'Rehabilitation inpatient': 2.984,
+      'Day hospital': 1.015,
+      'Outpatient follow-up': 2.902,
+      'Community relapse': 0.517,
+    },
+    'Day hospital': {
+      'Acute inpatient': 0.939,
+      'Rehabilitation inpatient': 1.005,
+      'Day hospital': 2.563,
+      'Outpatient follow-up': 3.293,
+      'Community relapse': 0.649,
+    },
+    'Outpatient follow-up': {
+      'Acute inpatient': 0.906,
+      'Rehabilitation inpatient': 0.801,
+      'Day hospital': 0.74,
+      'Outpatient follow-up': 4.5,
+      'Community relapse': 0.765,
+    },
+    'Community relapse': {
+      'Acute inpatient': 1.555,
+      'Rehabilitation inpatient': 1.157,
+      'Day hospital': 0.879,
+      'Outpatient follow-up': 3.266,
+      'Community relapse': 1.819,
+    },
+  },
   expectedMonthsToAbsorption: {
-    'Acute Admission': 14.6,
-    'Step-down Rehab': 11.2,
-    'Community Maintenance': 8.4,
+    'Acute inpatient': 8.9,
+    'Rehabilitation inpatient': 8.4,
+    'Day hospital': 8.45,
+    'Outpatient follow-up': 7.71,
+    'Community relapse': 8.68,
   },
   absorptionProbabilities: [
     {
-      state: 'Acute Admission',
-      dischargedStable: 46.2,
-      lostToFollowUp: 41.8,
-      transferredLongTerm: 12.0,
+      state: 'Acute inpatient',
+      dischargedStable: 42.2,
+      lostToFollowUp: 37.9,
+      transferredLongTerm: 7.2,
+      transferredFacility: 9.9,
+      deceased: 2.8,
     },
     {
-      state: 'Step-down Rehab',
-      dischargedStable: 54.1,
-      lostToFollowUp: 38.6,
-      transferredLongTerm: 7.3,
+      state: 'Rehabilitation inpatient',
+      dischargedStable: 43.6,
+      lostToFollowUp: 35.4,
+      transferredLongTerm: 10.8,
+      transferredFacility: 7.5,
+      deceased: 2.7,
     },
     {
-      state: 'Community Maintenance',
-      dischargedStable: 51.5,
-      lostToFollowUp: 44.2,
-      transferredLongTerm: 4.3,
+      state: 'Day hospital',
+      dischargedStable: 48.8,
+      lostToFollowUp: 38.9,
+      transferredLongTerm: 4.1,
+      transferredFacility: 6.8,
+      deceased: 1.5,
+    },
+    {
+      state: 'Outpatient follow-up',
+      dischargedStable: 48.1,
+      lostToFollowUp: 41.5,
+      transferredLongTerm: 3.4,
+      transferredFacility: 5.6,
+      deceased: 1.5,
+    },
+    {
+      state: 'Community relapse',
+      dischargedStable: 42.3,
+      lostToFollowUp: 43.1,
+      transferredLongTerm: 5.0,
+      transferredFacility: 7.7,
+      deceased: 1.9,
     },
   ],
+  lostToFollowUpRate: 39.4, // Baseline mean
+  minLostToFollowUpRate: 35.4,
+  maxLostToFollowUpRate: 43.1,
+  censoredPatientFraction: 0.0141,
+  sampleSize: 26601,
+  patientCount: 3200,
+  reliable: true,
+  minReliableTransitions: 150,
+  statesWithNoData: [],
+  filtersApplied: {},
   keyFindingNote:
-    'Across all cohorts, 35% to 43% (overall mean 39.4%) of patients exit the formal treatment cascade via Lost-to-Follow-up rather than planned clinical discharge. This represents the primary systemic leak in psychiatric continuum of care.',
+    'Across all cohorts, 35% to 43% (overall mean 39.4%) of patients exit the formal treatment cascade via Lost-to-Follow-up rather than planned clinical discharge. Filtering by patient segment, zone, family support tier, or diagnosis exposes significant subgroup variance.',
 }
 
 // 3. Admission Forecasts
