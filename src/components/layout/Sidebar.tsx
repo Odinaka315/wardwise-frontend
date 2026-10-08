@@ -38,7 +38,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
     items: [
       { to: '/pathway', label: 'Pathway Explorer', icon: GitFork },
       { to: '/risk-worklist', label: 'Risk Worklist', icon: AlertTriangle },
-      { to: '/segments', label: 'Segments', icon: Users },
+      // { to: '/segments', label: 'Segments', icon: Users },
     ],
   },
   {

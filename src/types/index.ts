@@ -351,3 +351,135 @@ export interface SavedCustomScenario {
   params: CustomScenarioSubmission
   result?: CustomScenarioResult | null
 }
+
+
+export interface Model2Assumptions {
+  demandBufferPct: number        // default 0   -- "what if occupancy runs X% hotter/colder"
+  budgetMultiplier: number       // default 1.0 -- "what if the budget were cut/raised by X%"
+  nurseRatioMultiplier: number   // default 1.0 -- "what if min nurse:bed ratio changed by X%"
+  doctorRatioMultiplier: number  // default 1.0 -- "what if min doctor:bed ratio changed by X%"
+}
+export const MODEL2_BASELINE_ASSUMPTIONS: Model2Assumptions = {
+  demandBufferPct: 0, budgetMultiplier: 1.0, nurseRatioMultiplier: 1.0, doctorRatioMultiplier: 1.0,
+}
+ 
+export interface BedReallocationAssumptions {
+  lookbackMonths: number   // default 6
+  demandBufferPct: number  // default 0
+}
+export const BED_REALLOCATION_BASELINE_ASSUMPTIONS: BedReallocationAssumptions = {
+  lookbackMonths: 6, demandBufferPct: 0,
+}
+ 
+export interface RosterAssumptions {
+  nightCapBonus: number     // default 0 -- extra night shifts allowed per staff member
+  compareRelaxed: boolean   // default false -- also solve +2 and report the improvement
+}
+export const ROSTER_BASELINE_ASSUMPTIONS: RosterAssumptions = {
+  nightCapBonus: 0, compareRelaxed: false,
+}
+ 
+export interface BudgetAssumptions {
+  personnelFloorFraction: number  // default 0.70
+  tierTolerance: number           // default 1.02
+}
+export const BUDGET_BASELINE_ASSUMPTIONS: BudgetAssumptions = {
+  personnelFloorFraction: 0.70, tierTolerance: 1.02,
+}
+
+// ADD these to types/index.ts (alongside the Model2Assumptions etc. you
+// already have there). These describe the RAW shape the solvers actually
+// return (snake_case, `by_unit`, etc.) — distinct from your old
+// Model2Result/BedReallocationResult/StaffRosterResult/BudgetTierResult,
+// which described a camelCase shape the solvers never produced. Keep the
+// old types if other pages still use mock data shaped that way; just
+// don't use them for the Decision Suite's live resolver results anymore.
+
+export interface Model2UnitRow {
+  unit_id: string
+  recommended_beds: number
+  recommended_nurses: number
+  recommended_doctors: number
+  current_beds: number
+  bed_change: number
+  pct_change: number
+}
+
+export interface Model2SolveResult {
+  status: string
+  message?: string
+  assumptions: Model2Assumptions & { is_baseline: boolean }
+  fiscal_year?: number
+  total_bed_stock?: number
+  total_budget_ngn?: number
+  optimal_annual_cost_ngn?: number
+  current_annual_cost_ngn?: number
+  annual_savings_ngn?: number
+  annual_savings_pct?: number
+  by_unit?: Model2UnitRow[]
+}
+
+export interface BedReallocationUnitRow {
+  unit_id: string
+  recommended_beds: number
+  current_beds: number
+  bed_change: number
+}
+
+export interface BedReallocationSolveResult {
+  lp_status: string
+  mip_status: string
+  flexible_pool_size: number
+  assumptions: BedReallocationAssumptions & { is_baseline: boolean }
+  scope_note: string
+  by_unit: BedReallocationUnitRow[]
+  sensitivity: Record<string, { shadow_price_ngn_per_year: number; slack: number }>
+}
+
+export interface RosterUnitRow {
+  unit_id: string
+  nurse_shortfall: number
+  doctor_shortfall: number
+}
+
+export interface RosterSolveResult {
+  status: string
+  total_penalised_shortfall: number
+  total_unfilled_nurse_shifts: number
+  total_unfilled_doctor_shifts: number
+  staff_at_night_cap: number
+  total_roster_staff: number
+  by_unit: RosterUnitRow[]
+  assumptions: RosterAssumptions & { is_baseline: boolean }
+  night_cap_sensitivity?: {
+    relaxed_by: number
+    relaxed_total_penalised_shortfall: number
+    improvement_pct: number
+  }
+}
+
+export interface BudgetTierRow {
+  goal_programming_tier: number
+  total_requested: number
+  total_allocated: number
+  avg_pct_funded: number
+}
+
+export interface BudgetSolveResult {
+  fiscal_year: number
+  assumptions: BudgetAssumptions & { is_baseline: boolean }
+  total_requested_ngn: number
+  total_budget_ceiling_ngn: number
+  structural_shortfall_pct: number
+  stage_results: Record<string, { status: string; weighted_shortfall: number }>
+  tier_summary: BudgetTierRow[]
+  by_line_item: {
+    unit_id: string
+    cost_category: string
+    goal_programming_tier: number
+    amount_requested_ngn: number
+    final_allocation: number
+    pct_funded: number
+  }[]
+}
+export type SolveJobStatus = 'idle' | 'submitting' | 'queued' | 'running' | 'success' | 'error'

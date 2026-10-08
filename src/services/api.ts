@@ -1,22 +1,30 @@
 import axios from 'axios'
-import type {
-  UnitCode,
-  UnitBaseline,
-  PathwaySummary,
-  ForecastItem,
-  RiskPatient,
-  LongStayResident,
-  PatientCluster,
-  Model2Result,
-  BedReallocationResult,
-  StaffRosterResult,
-  BudgetTierResult,
-  ScenarioSimulationResult,
-  StrikeTrajectoryPoint,
-  Model2UnitPlan,
-  CustomScenarioBaselineDefaults,
-  CustomScenarioSubmission,
-  CustomScenarioResult,
+import {
+  type UnitCode,
+  type UnitBaseline,
+  type PathwaySummary,
+  type ForecastItem,
+  type RiskPatient,
+  type LongStayResident,
+  type PatientCluster,
+  type ScenarioSimulationResult,
+  type StrikeTrajectoryPoint,
+  type CustomScenarioBaselineDefaults,
+  type CustomScenarioSubmission,
+  type CustomScenarioResult,
+  type Model2Assumptions,
+  MODEL2_BASELINE_ASSUMPTIONS,
+  type SolveJobStatus,
+  type BedReallocationAssumptions,
+  BED_REALLOCATION_BASELINE_ASSUMPTIONS,
+  type RosterAssumptions,
+  ROSTER_BASELINE_ASSUMPTIONS,
+  type BudgetAssumptions,
+  BUDGET_BASELINE_ASSUMPTIONS,
+  type Model2SolveResult,
+  type BedReallocationSolveResult,
+  type RosterSolveResult,
+  type BudgetSolveResult,
 } from '../types'
 import {
   hospitalUnitsBaseline,
@@ -25,10 +33,6 @@ import {
   riskWorklistData,
   longStayResidentsData,
   patientClustersData,
-  model2ResultData,
-  bedReallocationResultData,
-  staffRosterResultData,
-  budgetTierResultData,
   scenarioSimulationResults,
   strikeTrajectoryData,
 } from '../data/mockData'
@@ -347,223 +351,43 @@ const pollCeleryTask = async <T>(
 }
 
 // 7. Heavy Solve Endpoints — Real background Celery polling with fallback
-export const fetchModel2Solve = async (): Promise<{ data: Model2Result; isLive: boolean }> => {
-  return withFallback(async () => {
-    const raw = await pollCeleryTask<{
-      status: string
-      fiscal_year: number
-      total_bed_stock: number
-      total_budget_ngn: number
-      optimal_annual_cost_ngn: number
-      current_annual_cost_ngn: number
-      annual_savings_ngn: number
-      annual_savings_pct: number
-      by_unit: Array<{
-        unit_id: string
-        current_beds: number
-        recommended_beds: number
-        recommended_nurses: number
-        recommended_doctors: number
-        bed_change: number
-        pct_change: number
-      }>
-    }>('/api/v1/model2/solve', '/api/v1/model2/result')
+export const solveModel2 = (
+  assumptions: Model2Assumptions = MODEL2_BASELINE_ASSUMPTIONS,
+  onStatusChange?: (status: SolveJobStatus) => void,
+) =>
+  runSolveJob<Model2SolveResult>('/api/v1/model2/solve', {
+    demand_buffer_pct: assumptions.demandBufferPct,
+    budget_multiplier: assumptions.budgetMultiplier,
+    nurse_ratio_multiplier: assumptions.nurseRatioMultiplier,
+    doctor_ratio_multiplier: assumptions.doctorRatioMultiplier,
+  }, onStatusChange)
 
-    const unitNames: Record<string, string> = {
-      ACF: 'Acute Female Ward',
-      ACM: 'Acute Male Ward',
-      CAU: 'Child & Adolescent Unit',
-      CTU: 'Community Treatment Unit',
-      DAY: 'Day Hospital',
-      DRU: 'Drug Rehabilitation Unit',
-      FOR: 'Forensic Ward',
-      GER: 'Geriatric Unit',
-      LSR: 'Long-Stay Rehab',
-      LTW: 'Long-Term Ward',
-      OPD: 'Outpatient Dept',
-    }
+export const solveBedReallocation = (
+  assumptions: BedReallocationAssumptions = BED_REALLOCATION_BASELINE_ASSUMPTIONS,
+  onStatusChange?: (status: SolveJobStatus) => void,
+) =>
+  runSolveJob<BedReallocationSolveResult>('/api/v1/bed-reallocation/solve', {
+    lookback_months: assumptions.lookbackMonths,
+    demand_buffer_pct: assumptions.demandBufferPct,
+  }, onStatusChange)
 
-    const lockedUnits = new Set(['ACF', 'ACM', 'CAU', 'FOR', 'GER', 'CTU', 'LTW'])
+export const solveRoster = (
+  assumptions: RosterAssumptions = ROSTER_BASELINE_ASSUMPTIONS,
+  onStatusChange?: (status: SolveJobStatus) => void,
+) =>
+  runSolveJob<RosterSolveResult>('/api/v1/roster/solve', {
+    night_cap_bonus: assumptions.nightCapBonus,
+    compare_relaxed: assumptions.compareRelaxed,
+  }, onStatusChange)
 
-    const units: Model2UnitPlan[] = (raw.by_unit || []).map((u) => {
-      const code = u.unit_id as UnitCode
-      const currentBeds = u.current_beds || 30
-      const recBeds = u.recommended_beds || currentBeds
-      const recNurse = u.recommended_nurses || Math.round(recBeds * 0.22)
-      const curNurse = Math.round(currentBeds * 0.22)
-      return {
-        unitCode: code,
-        unitName: unitNames[u.unit_id] || u.unit_id,
-        isLocked: lockedUnits.has(u.unit_id),
-        currentBeds,
-        recommendedBeds: recBeds,
-        bedDelta: u.bed_change || (recBeds - currentBeds),
-        currentNurseFTE: curNurse,
-        recommendedNurseFTE: recNurse,
-        nurseDelta: recNurse - curNurse,
-        currentMonthlyCostNgn: Math.round(currentBeds * 42000 * 30),
-        projectedMonthlyCostNgn: Math.round(recBeds * 42000 * 30),
-      }
-    })
-
-    const totalCurrentBeds = units.reduce((acc, u) => acc + u.currentBeds, 0)
-    const totalRecBeds = units.reduce((acc, u) => acc + u.recommendedBeds, 0)
-    const totalCurrentStaff = units.reduce((acc, u) => acc + u.currentNurseFTE, 0)
-    const totalRecStaff = units.reduce((acc, u) => acc + u.recommendedNurseFTE, 0)
-
-    return {
-      annualSavingsPct: Number(raw.annual_savings_pct ?? 12.2),
-      annualSavingsNgn: Number(raw.annual_savings_ngn ?? 344451000),
-      totalCurrentBeds: totalCurrentBeds || raw.total_bed_stock || 362,
-      totalRecommendedBeds: totalRecBeds || 362,
-      totalCurrentStaff: totalCurrentStaff || 80,
-      totalRecommendedStaff: totalRecStaff || 72,
-      flexiblePoolOnlyCaveat:
-        'Model 2 full-hospital solve subject to operational constraint: locked_flag units (7 wards) require fixed allocations. Reallocation is strictly implementable across the flexible pool (DAY, DRU, LSR).',
-      units: units.length > 0 ? units : model2ResultData.units,
-    }
-  }, model2ResultData)
-}
-
-export const fetchBedReallocationSolve = async (): Promise<{ data: BedReallocationResult; isLive: boolean }> => {
-  return withFallback(async () => {
-    const raw = await pollCeleryTask<{
-      lp_status: string
-      mip_status: string
-      flexible_pool_size: number
-      scope_note: string
-      by_unit: Array<{ unit_id: string; recommended_beds: number; current_beds: number; bed_change: number }>
-      sensitivity: Record<string, { shadow_price_ngn_per_year: number; slack: number }>
-    }>('/api/v1/bed-reallocation/solve', '/api/v1/bed-reallocation/result')
-
-    const dru = raw.by_unit?.find((u) => u.unit_id === 'DRU')
-    const lsr = raw.by_unit?.find((u) => u.unit_id === 'LSR')
-    const day = raw.by_unit?.find((u) => u.unit_id === 'DAY')
-
-    const shifted = Math.abs(day?.bed_change ?? -17)
-
-    const shadowPrices = [
-      {
-        unit: 'Drug Rehab Unit (DRU)',
-        resource: 'Rehabilitation Bed Capacity',
-        shadowPrice: Math.round(raw.sensitivity?.Demand_DRU?.shadow_price_ngn_per_year ?? 9295029),
-        interpretation: 'NGN 9.30M/yr benefit per additional bed of demand capacity',
-      },
-      {
-        unit: 'Long-Stay Rehab (LSR)',
-        resource: 'Rehabilitation Bed Capacity',
-        shadowPrice: Math.round(raw.sensitivity?.Demand_LSR?.shadow_price_ngn_per_year ?? 5205306),
-        interpretation: 'NGN 5.21M/yr benefit per additional bed of demand capacity',
-      },
-      {
-        unit: 'Day Hospital (DAY)',
-        resource: 'Ambulatory Bed Slack',
-        shadowPrice: Math.round(raw.sensitivity?.Demand_DAY?.shadow_price_ngn_per_year ?? 0),
-        interpretation: 'Non-binding constraint (7 beds of slack remain above minimum)',
-      },
-      {
-        unit: 'Hospital Flexible Pool',
-        resource: 'Total Flexible Bed Stock',
-        shadowPrice: Math.round(raw.sensitivity?.Pool_Conservation?.shadow_price_ngn_per_year ?? 6977583),
-        interpretation: 'System-wide value per bed added to the flexible pool',
-      },
-    ]
-
-    return {
-      sourceUnit: 'Day Hospital (DAY)',
-      targetUnits: [
-        { unit: 'Drug Rehabilitation Unit (DRU)', bedsAdded: dru?.bed_change ?? 9 },
-        { unit: 'Long-Stay Rehabilitation (LSR)', bedsAdded: lsr?.bed_change ?? 8 },
-      ],
-      totalBedsShifted: shifted,
-      rationale:
-        'Linear & Mixed-Integer Programming solution confirmed optimal: 17 beds reallocated from Day Hospital to DRU and LSR to alleviate chronic overcrowding at zero net capital cost.',
-      shadowPrices,
-    }
-  }, bedReallocationResultData)
-}
-
-export const fetchStaffRosterSolve = async (): Promise<{ data: StaffRosterResult; isLive: boolean }> => {
-  return withFallback(async () => {
-    const raw = await pollCeleryTask<{
-      status: string
-      total_penalised_shortfall: number
-      total_unfilled_nurse_shifts: number
-      total_unfilled_doctor_shifts: number
-      staff_at_night_cap: number
-      total_roster_staff: number
-      by_unit?: Array<{ unit_id: string; unfilled_nurse_shifts: number; unfilled_doctor_shifts: number }>
-    }>('/api/v1/roster/solve', '/api/v1/roster/result')
-
-    const unitNames: Record<string, string> = {
-      ACF: 'Acute Care Female',
-      FOR: 'Forensic Unit',
-      ACM: 'Acute Care Male',
-      DRU: 'Drug Rehabilitation',
-      GER: 'Geriatric Psychiatry',
-      LSR: 'Long-Stay Rehab',
-    }
-
-    const priorityUnits: StaffRosterResult['priorityUnits'] = (raw.by_unit || [])
-      .map((u) => {
-        const shifts = Math.round(u.unfilled_nurse_shifts)
-        const code = u.unit_id as UnitCode
-        return {
-          unitCode: code,
-          unitName: unitNames[u.unit_id] || u.unit_id,
-          unfilledShifts: shifts,
-          urgency: (shifts > 350 ? 'Critical' : shifts > 200 ? 'High' : 'Moderate') as 'Critical' | 'High' | 'Moderate',
-          impactNote:
-            shifts > 350
-              ? 'Severe nurse headcount deficit; locked-ward competency requirement binds'
-              : 'Shortfall driven by night shift constraints and leave requests',
-        }
-      })
-      .filter((u) => u.unfilledShifts > 0)
-      .sort((a, b) => b.unfilledShifts - a.unfilledShifts)
-
-    return {
-      totalUnfilledNurseShifts: Math.round(raw.total_unfilled_nurse_shifts ?? 1733),
-      priorityUnits: priorityUnits.length > 0 ? priorityUnits : staffRosterResultData.priorityUnits,
-      shiftTypeBreakdown: staffRosterResultData.shiftTypeBreakdown,
-    }
-  }, staffRosterResultData)
-}
-
-export const fetchBudgetSolve = async (): Promise<{ data: BudgetTierResult; isLive: boolean }> => {
-  return withFallback(async () => {
-    const raw = await pollCeleryTask<{
-      fiscal_year: number
-      total_requested_ngn: number
-      total_budget_ceiling_ngn: number
-      structural_shortfall_pct: number
-      tier_summary?: {
-        'Tier 1'?: { funded_pct: number; allocated_ngn: number }
-        'Tier 2'?: { funded_pct: number; allocated_ngn: number }
-        'Tier 3'?: { funded_pct: number; allocated_ngn: number }
-      }
-    }>('/api/v1/budget/solve', '/api/v1/budget/result')
-
-    const t1 = raw.tier_summary?.['Tier 1']?.funded_pct ?? 100
-    const t2 = raw.tier_summary?.['Tier 2']?.funded_pct ?? 92
-    const t3 = raw.tier_summary?.['Tier 3']?.funded_pct ?? 5.5
-
-    const totalReq = raw.total_requested_ngn ?? 7719690000
-    const totalSec = raw.total_budget_ceiling_ngn ?? 5672620000
-
-    return {
-      tier1EssentialPct: Number(t1.toFixed(1)),
-      tier2ClinicalSupportPct: Number(t2.toFixed(1)),
-      tier3DevelopmentalPct: Number(t3.toFixed(1)),
-      structuralShortfallPct: Number((raw.structural_shortfall_pct ?? 26.5).toFixed(1)),
-      totalBudgetRequestedNgn: totalReq,
-      totalBudgetSecuredNgn: totalSec,
-      deficitNgn: totalReq - totalSec,
-      framingNote:
-        'Structural shortfall of 26.5%: Personnel floor protected at 70%. Tier 1 funded at 100%, Tier 2 at 92%, and Tier 3 absorbs the remainder at 5.5%.',
-    }
-  }, budgetTierResultData)
-}
+export const solveBudget = (
+  assumptions: BudgetAssumptions = BUDGET_BASELINE_ASSUMPTIONS,
+  onStatusChange?: (status: SolveJobStatus) => void,
+) =>
+  runSolveJob<BudgetSolveResult>('/api/v1/budget/solve', {
+    personnel_floor_fraction: assumptions.personnelFloorFraction,
+    tier_tolerance: assumptions.tierTolerance,
+  }, onStatusChange)
 
 export const fetchScenarioSimulation = async (): Promise<{ data: ScenarioSimulationResult[]; isLive: boolean }> => {
   return withFallback(async () => {
@@ -715,3 +539,42 @@ export const fetchBaselineSummary = async (filters: BaselineFilters = {}): Promi
     safetyIncidents: raw.safety_incidents || 0,
   };
 };
+
+async function runSolveJob<TResult>(
+  solvePath: string,
+  body: Record<string, unknown>,
+  onStatusChange?: (status: SolveJobStatus) => void,
+  pollIntervalMs = 1200,
+  timeoutMs = 120_000,
+): Promise<TResult> {
+  onStatusChange?.('submitting')
+  const submitRes = await apiClient.post<{ task_id: string }>(solvePath, body)
+  const taskId = submitRes.data.task_id
+ 
+  const start = Date.now()
+  onStatusChange?.('queued')
+  while (Date.now() - start < timeoutMs) {
+    const pollRes = await apiClient.get<{
+      status: string
+      result?: TResult
+      error?: string
+    }>(`${solvePath.replace('/solve', '')}/result/${taskId}`)
+    const { status, result, error } = pollRes.data
+ 
+    if (status === 'SUCCESS') {
+      onStatusChange?.('success')
+      return result as TResult
+    }
+    if (status === 'FAILURE') {
+      onStatusChange?.('error')
+      throw new Error(error || 'Solve job failed.')
+    }
+    onStatusChange?.(status === 'STARTED' ? 'running' : 'queued')
+    await new Promise((r) => setTimeout(r, pollIntervalMs))
+  }
+  onStatusChange?.('error')
+  throw new Error('Solve job timed out.')
+}
+
+export { MODEL2_BASELINE_ASSUMPTIONS, BED_REALLOCATION_BASELINE_ASSUMPTIONS, ROSTER_BASELINE_ASSUMPTIONS, BUDGET_BASELINE_ASSUMPTIONS }
+export type { Model2Assumptions, BedReallocationAssumptions, RosterAssumptions, BudgetAssumptions, SolveJobStatus }

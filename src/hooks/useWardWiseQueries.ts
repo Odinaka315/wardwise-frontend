@@ -1,3 +1,5 @@
+import { useMutation } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchBaselineSummary, type BaselineFilters } from '../services/api';
 import {
@@ -8,15 +10,59 @@ import {
   fetchRiskWorklist,
   fetchPatientSegments,
   fetchLongStaySummary,
-  fetchModel2Solve,
-  fetchBedReallocationSolve,
-  fetchStaffRosterSolve,
-  fetchBudgetSolve,
+  solveModel2,
+  solveBedReallocation,
+  solveRoster,
+  solveBudget,
   fetchScenarioSimulation,
   fetchStrikeTrajectory,
   fetchPathwayFilterOptions,
   type PathwayFilters,
+  MODEL2_BASELINE_ASSUMPTIONS,
+  BED_REALLOCATION_BASELINE_ASSUMPTIONS,
+  ROSTER_BASELINE_ASSUMPTIONS,
+  BUDGET_BASELINE_ASSUMPTIONS,
 } from '../services/api'
+
+import type {
+  Model2Assumptions,
+  BedReallocationAssumptions,
+  RosterAssumptions,
+  BudgetAssumptions,
+  SolveJobStatus,
+  Model2SolveResult,
+  BedReallocationSolveResult,
+  RosterSolveResult,
+  BudgetSolveResult,
+} from '../types'
+
+function useSolveMutation<TAssumptions, TResult>(
+  solveFn: (a: TAssumptions, onStatus?: (s: SolveJobStatus) => void) => Promise<TResult>,
+  defaultAssumptions: TAssumptions,
+) {
+  const [jobStatus, setJobStatus] = useState<SolveJobStatus>('idle')
+  // The first successful resolve becomes the "what changed" reference
+  // point for later resolves. Starts undefined -- there is no result
+  // until a real solve has actually run, by design.
+  const [baselineResult, setBaselineResult] = useState<TResult | undefined>(undefined)
+ 
+  const mutation = useMutation({
+    mutationFn: (assumptions: TAssumptions) => solveFn(assumptions, setJobStatus),
+    onSuccess: (result) => {
+      setBaselineResult((prev) => prev ?? result)
+    },
+  })
+ 
+  return {
+    resolve: (assumptions: TAssumptions) => mutation.mutate(assumptions),
+    result: mutation.data,
+    baselineResult,
+    jobStatus,
+    isResolving: mutation.isPending,
+    error: mutation.error as Error | null,
+    defaultAssumptions,
+  }
+}
 
 // Backend connectivity and database health hook
 export const useBackendHealthQuery = () => {
@@ -87,37 +133,19 @@ export const useLongStayQuery = () => {
 }
 
 // 7. Optimization Solves & Scenarios
-export const useModel2Query = () => {
-  return useQuery({
-    queryKey: ['model2-solve'],
-    queryFn: fetchModel2Solve,
-    staleTime: 1000 * 60 * 15,
-  })
-}
-
-export const useBedReallocationQuery = () => {
-  return useQuery({
-    queryKey: ['bed-reallocation-solve'],
-    queryFn: fetchBedReallocationSolve,
-    staleTime: 1000 * 60 * 15,
-  })
-}
-
-export const useStaffRosterQuery = () => {
-  return useQuery({
-    queryKey: ['staff-roster-solve'],
-    queryFn: fetchStaffRosterSolve,
-    staleTime: 1000 * 60 * 15,
-  })
-}
-
-export const useBudgetSolveQuery = () => {
-  return useQuery({
-    queryKey: ['budget-tier-solve'],
-    queryFn: fetchBudgetSolve,
-    staleTime: 1000 * 60 * 15,
-  })
-}
+export const useModel2Resolver = () =>
+  useSolveMutation<Model2Assumptions, Model2SolveResult>(solveModel2, MODEL2_BASELINE_ASSUMPTIONS)
+ 
+export const useBedReallocationResolver = () =>
+  useSolveMutation<BedReallocationAssumptions, BedReallocationSolveResult>(
+    solveBedReallocation, BED_REALLOCATION_BASELINE_ASSUMPTIONS
+  )
+ 
+export const useRosterResolver = () =>
+  useSolveMutation<RosterAssumptions, RosterSolveResult>(solveRoster, ROSTER_BASELINE_ASSUMPTIONS)
+ 
+export const useBudgetResolver = () =>
+  useSolveMutation<BudgetAssumptions, BudgetSolveResult>(solveBudget, BUDGET_BASELINE_ASSUMPTIONS)
 
 export const useScenarioSimulationQuery = () => {
   return useQuery({
